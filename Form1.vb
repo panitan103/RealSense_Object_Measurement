@@ -539,10 +539,26 @@ Public Class Form1
             Dim rect_crop As RotatedRect = CvInvoke.MinAreaRect(ctn(largestContourIndex))
             Dim rectPoints_crop() As PointF = rect_crop.GetVertices()
             Dim rectCorners() As Point = Array.ConvertAll(rectPoints_crop, Function(p) New Point(CInt(p.X + txt_ROIX.Text), CInt(p.Y + txt_ROIY.Text)))
-            Dim rectCorners_TL = rectCorners(0)
-            Dim rectCorners_TR = rectCorners(1)
-            Dim rectCorners_BL = rectCorners(2)
-            Dim rectCorners_BR = rectCorners(3)
+            Dim rectCorners_TL
+            Dim rectCorners_TR
+            Dim rectCorners_BR
+            Dim rectCorners_BL
+            rectCorners_TL = rectCorners(0)
+            rectCorners_TR = rectCorners(1)
+            rectCorners_BR = rectCorners(2)
+            rectCorners_BL = rectCorners(3)
+
+            If rectCorners(0).Y < rectCorners(2).Y Then
+                rectCorners_TL = rectCorners(0)
+                rectCorners_TR = rectCorners(1)
+                rectCorners_BR = rectCorners(2)
+                rectCorners_BL = rectCorners(3)
+            Else
+                rectCorners_TL = rectCorners(1)
+                rectCorners_TR = rectCorners(2)
+                rectCorners_BR = rectCorners(3)
+                rectCorners_BL = rectCorners(0)
+            End If
 
             Dim rectCorners_TL_x_lrg = ((rectCorners_TL.X * beta_1_x) + beta_0_x)
             Dim rectCorners_TL_y_lrg = ((rectCorners_TL.Y * beta_1_y) + beta_0_y)
@@ -553,20 +569,13 @@ Public Class Form1
             Dim rectCorners_BL_x_lrg = ((rectCorners_BL.X * beta_1_x) + beta_0_x)
             Dim rectCorners_BL_y_lrg = ((rectCorners_BL.Y * beta_1_y) + beta_0_y)
 
-            If rectCorners_TL.X > rectCorners_BR.X Then
-                distance_x_pixel = (System.Math.Sqrt((rectCorners_TL.X - rectCorners_TR.X) ^ 2 + (rectCorners_TL.Y - rectCorners_TR.Y) ^ 2))
-                distance_y_pixel = (System.Math.Sqrt((rectCorners_TL.X - rectCorners_BL.X) ^ 2 + (rectCorners_TL.Y - rectCorners_BL.Y) ^ 2))
-                distance_x = (System.Math.Sqrt((rectCorners_TL_x_lrg - rectCorners_TR_x_lrg) ^ 2 + (rectCorners_TL_y_lrg - rectCorners_TR_y_lrg) ^ 2))
-                distance_Y = (System.Math.Sqrt((rectCorners_TL_x_lrg - rectCorners_BL_x_lrg) ^ 2 + (rectCorners_TL_y_lrg - rectCorners_BL_y_lrg) ^ 2))
+            distance_x_pixel = (System.Math.Sqrt((rectCorners_TL.X - rectCorners_TR.X) ^ 2 + (rectCorners_TL.Y - rectCorners_TR.Y) ^ 2))
+            distance_y_pixel = (System.Math.Sqrt((rectCorners_TL.X - rectCorners_BL.X) ^ 2 + (rectCorners_TL.Y - rectCorners_BL.Y) ^ 2))
+            distance_x = (System.Math.Sqrt((rectCorners_TL_x_lrg - rectCorners_TR_x_lrg) ^ 2 + (rectCorners_TL_y_lrg - rectCorners_TR_y_lrg) ^ 2))
+            distance_Y = (System.Math.Sqrt((rectCorners_TL_x_lrg - rectCorners_BL_x_lrg) ^ 2 + (rectCorners_TL_y_lrg - rectCorners_BL_y_lrg) ^ 2))
 
-                'Dim rect As Rectangle = New Rectangle(rect_crop.X + txt_ROIX.Text, rect_crop.Y + txt_ROIY.Text, rect_crop.Width, rect_crop.Height)
-            Else
-                distance_x_pixel = (System.Math.Sqrt((rectCorners_TR.X - rectCorners_BR.X) ^ 2 + (rectCorners_TR.Y - rectCorners_BR.Y) ^ 2))
-                distance_y_pixel = (System.Math.Sqrt((rectCorners_TL.X - rectCorners_TR.X) ^ 2 + (rectCorners_TL.Y - rectCorners_TR.Y) ^ 2))
-                distance_x = (System.Math.Sqrt((rectCorners_TR_x_lrg - rectCorners_BR_x_lrg) ^ 2 + (rectCorners_TR_y_lrg - rectCorners_BR_y_lrg) ^ 2))
-                distance_Y = (System.Math.Sqrt((rectCorners_TL_x_lrg - rectCorners_TR_x_lrg) ^ 2 + (rectCorners_TL_y_lrg - rectCorners_TR_y_lrg) ^ 2))
+            'Dim rect As Rectangle = New Rectangle(rect_crop.X + txt_ROIX.Text, rect_crop.Y + txt_ROIY.Text, rect_crop.Width, rect_crop.Height)
 
-            End If
             distance_x_ppm = distance_x_pixel / pixel_per_matric_x
             distance_y_ppm = distance_y_pixel / pixel_per_matric_y
 
@@ -576,30 +585,33 @@ Public Class Form1
                 CvInvoke.Polylines(Edge_out, rectCorners, True, New MCvScalar(0, 255, 0), 2)
                 CvInvoke.Polylines(img_filtered, rectCorners, True, New MCvScalar(0, 255, 0), 2)
 
-                CvInvoke.PutText(Edge_out, "TL", rectCorners_TL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
-                CvInvoke.PutText(Edge_out, "TR", rectCorners_TR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
-                CvInvoke.PutText(Edge_out, "BL", rectCorners_BL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
-                CvInvoke.PutText(Edge_out, "BR", rectCorners_BR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(Edge_out, "TL", rectCorners_TL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(Edge_out, "TR", rectCorners_TR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(Edge_out, "BL", rectCorners_BL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(Edge_out, "BR", rectCorners_BR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
 
                 CvInvoke.PutText(img_filtered, "TL", rectCorners_TL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
                 CvInvoke.PutText(img_filtered, "TR", rectCorners_TR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
                 CvInvoke.PutText(img_filtered, "BL", rectCorners_BL, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
                 CvInvoke.PutText(img_filtered, "BR", rectCorners_BR, FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
-                If rectCorners_TL.X > rectCorners_BR.X Then
-                    CvInvoke.PutText(Edge_out, distance_x, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(Edge_out, distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
 
-                    CvInvoke.PutText(img_filtered, distance_x, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(img_filtered, distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(Edge_out, "0", rectCorners(0), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                CvInvoke.PutText(Edge_out, "1", rectCorners(1), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                CvInvoke.PutText(Edge_out, "2", rectCorners(2), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                CvInvoke.PutText(Edge_out, "3", rectCorners(3), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
 
-                Else
-                    CvInvoke.PutText(Edge_out, distance_x, New Point(CInt((rectCorners_TR.X + rectCorners_BL.X) / 2), CInt((rectCorners_TR.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(Edge_out, distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                'CvInvoke.PutText(img_filtered, "0", rectCorners(0), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(img_filtered, "1", rectCorners(1), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(img_filtered, "2", rectCorners(2), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
+                'CvInvoke.PutText(img_filtered, "3", rectCorners(3), FontFace.HersheyDuplex, 1, New MCvScalar(255, 0, 255))
 
-                    CvInvoke.PutText(img_filtered, distance_x, New Point(CInt((rectCorners_TR.X + rectCorners_BL.X) / 2), CInt((rectCorners_TR.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(img_filtered, distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(Edge_out, "X =" & distance_x, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(Edge_out, "Y =" & distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_BL.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
 
-                End If
+                CvInvoke.PutText(img_filtered, "X =" & distance_x, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(img_filtered, "Y =" & distance_Y, New Point(CInt((rectCorners_TL.X + rectCorners_BL.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+
+
 
                 CvInvoke.PutText(Edge_out, "Linear regresstion", New Point(10, 20), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0), 2)
                 CvInvoke.PutText(img_filtered, "Linear regresstion", New Point(10, 20), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0), 2)
@@ -610,21 +622,13 @@ Public Class Form1
                 CvInvoke.Polylines(img_filtered, rectCorners, True, New MCvScalar(0, 255, 0), 2)
 
 
-                If rectCorners_TL.X > rectCorners_BR.X Then
-                    CvInvoke.PutText(Edge_out, distance_x_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(Edge_out, distance_y_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(Edge_out, "X =" & distance_x_ppm, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(Edge_out, "Y =" & distance_y_ppm, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
 
-                    CvInvoke.PutText(img_filtered, distance_x_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(img_filtered, distance_y_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(img_filtered, "X =" & distance_x_ppm, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
+                CvInvoke.PutText(img_filtered, "Y =" & distance_y_ppm, New Point(CInt((rectCorners_TL.X + rectCorners_BR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_BR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
 
-                Else
-                    CvInvoke.PutText(Edge_out, distance_x_pixel, New Point(CInt((rectCorners_TR.X + rectCorners_BL.X) / 2), CInt((rectCorners_TR.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(Edge_out, distance_y_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
 
-                    CvInvoke.PutText(img_filtered, distance_x_pixel, New Point(CInt((rectCorners_TR.X + rectCorners_BL.X) / 2), CInt((rectCorners_TR.Y + rectCorners_BL.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-                    CvInvoke.PutText(img_filtered, distance_y_pixel, New Point(CInt((rectCorners_TL.X + rectCorners_TR.X) / 2), CInt((rectCorners_TL.Y + rectCorners_TR.Y) / 2)), FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-
-                End If
 
             End If
 
@@ -805,8 +809,8 @@ Public Class Form1
         Debug.Print("TL" & " = " & Aruco_coordinate.Item(0).Item1 & "," & Aruco_coordinate.Item(0).Item2 & vbCrLf &
                     "TR" & " = " & Aruco_coordinate.Item(2).Item1 & "," & Aruco_coordinate.Item(2).Item2 & vbCrLf &
                     "BL" & " = " & Aruco_coordinate.Item(6).Item1 & "," & Aruco_coordinate.Item(6).Item2 & vbCrLf &
-                    "TL to TR X" & " = " & distance_x_pixel & vbCrLf &
-                    "TL to BL Y" & " = " & distance_y_pixel & vbCrLf &
+                    "TL to TR X" & " = " & dst_x_pixel & vbCrLf &
+                    "TL to BL Y" & " = " & dst_y_pixel & vbCrLf &
                     "degree x" & " = " & degree_x * 180 / System.Math.PI & vbCrLf &
                     "degree y" & " = " & degree_y * 180 / System.Math.PI & vbCrLf &
                     "re-size x" & " = " & re_x & vbCrLf &
@@ -995,12 +999,12 @@ Public Class Form1
                 ' Create a StreamWriter to write the CSV file
                 Using writer As New IO.StreamWriter(saveFileDialog.FileName)
                     ' Write the header row
-                    writer.WriteLine("Width pixel,Width real,Height pixel,Height real")
+                    writer.WriteLine("Width pixel,Width real,Height pixel,Height real,beta_1_x,beta_0_x,beta_1_y,beta_0_y,pixel_per_matric_x,pixel_per_matric_y")
                     ' Write the data rows
                     Dim i As Integer = 0
                     For Each item In Aruco_coordinate
 
-                        writer.WriteLine($"{item.Item1},{X_real.Item(i)},{item.Item2},{Y_real.Item(i)}")
+                        writer.WriteLine($"{item.Item1},{X_real.Item(i)},{item.Item2},{Y_real.Item(i)},{beta_1_x},{beta_0_x},{beta_1_y},{beta_0_y},{pixel_per_matric_x},{pixel_per_matric_y}")
                         i = i + 1
                     Next
                     ' Flush the StreamWriter to ensure all data is written to the file
