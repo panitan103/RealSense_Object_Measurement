@@ -1,6 +1,7 @@
 ﻿Imports System.IO
 Imports System.Runtime.Remoting
 Imports System.Threading
+'Imports System.Windows
 Imports System.Windows.Media
 Imports System.Windows.Media.Imaging
 Imports Emgu.CV
@@ -21,6 +22,7 @@ Public Class Form1
     Private tab_select As Integer = 1
 
     Private colorImage As New Mat
+    Private depth As DepthFrame
     Private depthAlignImage As New Mat
     'Private depthAlignImageScale As Mat
 
@@ -34,7 +36,7 @@ Public Class Form1
     Dim rs_framerate As Integer
 
     Private Aruco_coordinate As New List(Of Tuple(Of Integer, Integer))
-    Private size_obj As New List(Of Tuple(Of Tuple(Of Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double, Double, Double), Tuple(Of Double, Double)))
+    Private size_obj As New List(Of Tuple(Of Tuple(Of Double, Double, Double), Tuple(Of Double, Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double, Double, Double), Tuple(Of Double, Double)))
 
     Dim beta_1_x As Double
     Dim beta_0_x As Double
@@ -45,8 +47,8 @@ Public Class Form1
     Dim RealSense_ArUco_thread As New Thread(AddressOf Realsense_ArUco)
     Dim RealSense_Measurement_thread As New Thread(AddressOf Realsense_Measurement)
 
-    Dim maker_x As Double = 2
-    Dim maker_y As Double = 2
+    Dim maker_x As Integer = 200
+    Dim maker_y As Integer = 200
     Dim X_real As New List(Of Double)({0, maker_x / 2, maker_x, maker_x, maker_x, maker_x / 2, 0, 0})
     Dim Y_real As New List(Of Double)({0, 0, 0, maker_y / 2, maker_y, maker_y, maker_y, maker_y / 2})
 
@@ -59,6 +61,12 @@ Public Class Form1
     Dim distance_Y As Double
     Dim distance_x_ppm As Double
     Dim distance_y_ppm As Double
+    Dim distance_x_intrinsics As Double
+    Dim distance_y_intrinsics As Double
+
+    Dim intr As Intrinsics
+    Dim itr As Integer
+    Dim itr_old As Integer
 
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 
@@ -255,7 +263,7 @@ Public Class Form1
                 rs_framerate = txt_measurement_RS_FrameRate.Text
             End If
 
-            Debug.Print(rs_width & " , " & rs_height & " , " & rs_framerate)
+            'Debug.Print(rs_width & " , " & rs_height & " , " & rs_framerate)
 
             cfg.EnableStream(Intel.RealSense.Stream.Depth, width:=rs_width, height:=rs_height, framerate:=rs_framerate)
             cfg.EnableStream(Intel.RealSense.Stream.Color, width:=rs_width, height:=rs_height, Format.Rgb8, framerate:=rs_framerate)
@@ -269,9 +277,12 @@ Public Class Form1
                 pipeline.Stop()
 
                 profile = (pipeline.Start(cfg))
+
+
                 Debug.Print("Pipeline is restart.")
             End If
-
+            'intr = profile.GetStream(Intel.RealSense.Stream.Depth).As(Of VideoStreamProfile).GetIntrinsics()
+            'Debug.Print(intr.width.ToString() & " , " & rs_framerate & " , " & intr.height.ToString() & " , " & intr.ppx.ToString() & " , " & intr.ppy.ToString() & " , " & intr.fx.ToString() & " , " & intr.fy.ToString() & " , " & intr.model.ToString() & " , " & intr.coeffs.ToString() & " , " & intr.FOV.ToString())
             'CheckRealSensePipeline = True
 
 
@@ -286,7 +297,6 @@ Public Class Form1
 
         Using frames As FrameSet = pipeline.WaitForFrames()
 
-
             colorImage = VideoFrameToMat(frames.ColorFrame)
 
             Dim colorizedDepth = colorizer.Process(Of VideoFrame)(frames.DepthFrame).DisposeWith(frames)
@@ -294,44 +304,61 @@ Public Class Form1
 
 
             'RealSenseDepthImage.Image = depthImage
+            If btn_aruco_align.BackColor = System.Drawing.Color.LimeGreen Or btn_measure_align.BackColor = System.Drawing.Color.LimeGreen Then
+                Dim aligned As Frame = align.Process(frames).DisposeWith(frames)
+                Using alignedframeset As FrameSet = aligned.AsFrameSet
+                    Dim colorFrame = alignedframeset.ColorFrame.DisposeWith(alignedframeset)
+                    Dim DepthFrame = alignedframeset.DepthFrame.DisposeWith(alignedframeset).As(Of VideoFrame)
+                    DepthFrame = colorizer.Process(Of VideoFrame)(alignedframeset.DepthFrame).DisposeWith(frames)
+                    depth = alignedframeset.DepthFrame
+                    itr = 1
+                    'Dim depthAlignImage As Mat
+                    depthAlignImage = VideoFrameToMat(DepthFrame)
 
-            Dim aligned As Frame = align.Process(frames).DisposeWith(frames)
-            Using alignedframeset As FrameSet = aligned.AsFrameSet
-                Dim colorFrame = alignedframeset.ColorFrame.DisposeWith(alignedframeset)
-                Dim DepthFrame = alignedframeset.DepthFrame.DisposeWith(alignedframeset).As(Of VideoFrame)
-                DepthFrame = colorizer.Process(Of VideoFrame)(alignedframeset.DepthFrame).DisposeWith(frames)
-                'Dim depthAlignImage As Mat
-                depthAlignImage = VideoFrameToMat(DepthFrame)
-                Dim rs_alpha As Integer
-                Dim rs_beta As Integer
+                    'RealSenseImage.Image = depthAlignImage
+
+                End Using
+            Else
+                depthAlignImage = depthImage
+                depth = frames.DepthFrame
+                itr = 0
+            End If
+            If itr_old <> itr Then
+                Debug.Print("change")
+                intr = depth.GetProfile(Of VideoStreamProfile)().GetIntrinsics()
+                itr_old = itr
+            End If
+
+
+
+            Dim rs_alpha As Integer
+            Dim rs_beta As Integer
+            If tab_select = 1 Then
+                rs_alpha = txt_aruco_rs_alpha.Text
+                rs_beta = txt_aruco_rs_beta.Text
+            ElseIf tab_select = 2 Then
+                rs_alpha = txt_measurement_rs_alpha.Text
+                rs_beta = txt_measurement_rs_beta.Text
+            End If
+
+            If btn_aruco_image_mode.BackColor = System.Drawing.Color.LimeGreen Then
+
+                img_aruco_RealSenseImage.Image = colorImage
+
                 If tab_select = 1 Then
-                    rs_alpha = txt_aruco_rs_alpha.Text
-                    rs_beta = txt_aruco_rs_beta.Text
-                ElseIf tab_select = 2 Then
-                    rs_alpha = txt_measurement_rs_alpha.Text
-                    rs_beta = txt_measurement_rs_beta.Text
-                End If
-
-                If btn_aruco_image_mode.BackColor = System.Drawing.Color.LimeGreen Then
-
-                    img_aruco_RealSenseImage.Image = colorImage
-
-                    If tab_select = 1 Then
-                        img_aruco_RealSenseDepthImage.Image = depthAlignImage
-                    End If
-
-                ElseIf btn_aruco_image_mode.BackColor = System.Drawing.Color.RoyalBlue Then
-                    img_aruco_RealSenseImage.Image = depthAlignImage
-                    If txt_aruco_rs_alpha.Text <> Nothing And txt_aruco_rs_alpha.Text <> 0 Then
-                        CvInvoke.ConvertScaleAbs(depthAlignImage, depthAlignImage, (rs_alpha / 500), rs_beta)
-                        CvInvoke.ApplyColorMap(depthAlignImage, depthAlignImage, ColorMapType.Jet)
-                    End If
                     img_aruco_RealSenseDepthImage.Image = depthAlignImage
                 End If
-                'RealSenseImage.Image = depthAlignImage
 
+            ElseIf btn_aruco_image_mode.BackColor = System.Drawing.Color.RoyalBlue Then
+                img_aruco_RealSenseImage.Image = depthAlignImage
+                If txt_aruco_rs_alpha.Text <> Nothing And txt_aruco_rs_alpha.Text <> 0 Then
+                    CvInvoke.ConvertScaleAbs(depthAlignImage, depthAlignImage, (rs_alpha * 2 / 500), rs_beta)
+                    CvInvoke.ApplyColorMap(depthAlignImage, depthAlignImage, ColorMapType.Jet)
+                End If
+                img_aruco_RealSenseDepthImage.Image = depthAlignImage
 
-            End Using
+            End If
+
         End Using
 
 
@@ -355,27 +382,106 @@ Public Class Form1
 
 
         End If
-        img_aruco_ArUcoImage.Image = img_get
+        'img_aruco_ArUcoImage.Image = img_get
 
-        CvInvoke.CvtColor(img_get, img_filtered, ColorConversion.Bgr2Gray)
 
-        If (txt_aruco_ThrshBlockSize.Text Mod 2) = 0 Or txt_aruco_ThrshBlockSize.Text < 3 Or txt_aruco_ThrshBlockSize.Text Is Nothing Then
+        If btn_Aruco_Detection_method.BackColor = System.Drawing.Color.RoyalBlue Then
+            CvInvoke.CvtColor(img_get, img_filtered, ColorConversion.Bgr2Hsv)
+
+            Dim lowerColor As New UMat(img_filtered.Size.Height, img_filtered.Size.Width / 2, DepthType.Cv8U, 3)
+            Dim upperColor As New UMat(img_filtered.Size.Height, img_filtered.Size.Width / 2, DepthType.Cv8U, 3)
+            Dim lowerhsvColor As New UMat(img_filtered.Size, DepthType.Cv8U, 3)
+            Dim upperhsvColor As New UMat(img_filtered.Size, DepthType.Cv8U, 3)
+
+            Dim lowerHSV As New MCvScalar(txt_Aruco_Hue_low.Text, txt_Aruco_Sat_low.Text, txt_Aruco_Val_low.Text)
+            Dim upperHSV As New MCvScalar(txt_Aruco_Hue_Shift.Text, txt_Aruco_Sat_Shift.Text, txt_Aruco_Val_Shift.Text)
+
+
+            lowerColor.SetTo(lowerHSV) ' Lower bound for red color in HSV
+            upperColor.SetTo(upperHSV) ' Upper bound for red color in HSV
+
+            lowerhsvColor.SetTo(lowerHSV) ' Lower bound for red color in HSV
+            upperhsvColor.SetTo(upperHSV) ' Upper bound for red color in HSV
+
+            'CvInvoke.CvtColor(lowerhsvColor, lowerhsvColor, ColorConversion.Hsv2Bgr)
+            'CvInvoke.CvtColor(upperhsvColor, upperhsvColor, ColorConversion.Hsv2Bgr)
+            CvInvoke.CvtColor(lowerColor, lowerColor, ColorConversion.Hsv2Bgr)
+            CvInvoke.CvtColor(upperColor, upperColor, ColorConversion.Hsv2Bgr)
+
+            Dim colorpicker As New Mat()
+
+            CvInvoke.HConcat(lowerColor, upperColor, colorpicker)
+            img_aruco_ArUcoImage.Image = colorpicker
+
+            'CvInvoke.CvtColor(lowerhsvColor, lowerhsvColor, ColorConversion.Bgr2Hsv)
+            'CvInvoke.CvtColor(upperhsvColor, upperhsvColor, ColorConversion.Bgr2Hsv)
+            ' Create a mask to extract only red pixels
+            'CvInvoke.CvtColor(img_filtered, img_filtered, ColorConversion.Bgr2Hsv)
+            CvInvoke.InRange(img_filtered, lowerhsvColor, upperhsvColor, img_filtered)
+
+            If btn_Aruco_color_INV.Text = "Inverse" Then
+                CvInvoke.BitwiseNot(img_filtered, img_filtered)
+            End If
+        ElseIf btn_Aruco_Detection_method.BackColor = System.Drawing.Color.LimeGreen Then
+            CvInvoke.CvtColor(img_get, img_filtered, ColorConversion.Bgr2Gray)
+
+            If (txt_aruco_ThrshBlockSize.Text Mod 2) = 0 Or txt_aruco_ThrshBlockSize.Text < 3 Or txt_aruco_ThrshBlockSize.Text Is Nothing Then
+                Return
+            End If
+
+            If txt_aruco_ThrshSelect.Text = "threshold adaptive" Then
+                CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.Binary, txt_aruco_ThrshBlockSize.Text, txt_aruco_ThrshSubMean.Text)
+
+            ElseIf txt_aruco_ThrshSelect.Text = "threshold adaptive invert" Then
+
+                CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.BinaryInv, txt_aruco_ThrshBlockSize.Text, txt_aruco_ThrshSubMean.Text)
+            ElseIf txt_aruco_ThrshSelect.Text = "threshold" Then
+                CvInvoke.Threshold(img_filtered, img_filtered, txt_aruco_ThrshSubMean.Text, 255, ThresholdType.Binary)
+
+            ElseIf txt_aruco_ThrshSelect.Text = "threshold invert" Then
+                CvInvoke.Threshold(img_filtered, img_filtered, txt_aruco_ThrshSubMean.Text, 255, ThresholdType.BinaryInv)
+
+            End If
+            img_aruco_ArUcoImage.Image = img_filtered
+
+
+
+        End If
+
+        If txt_MorphDilateKernel.Text Is Nothing Then
+            Return
+        End If
+        If txt_MorphOpenKernel.Text Is Nothing Then
+            Return
+        End If
+        If txt_MorphDilateIteration.Text Is Nothing Then
+            Return
+        End If
+        If txt_MorphOpenIteration.Text Is Nothing Then
             Return
         End If
 
-        If txt_aruco_ThrshSelect.Text = "threshold adaptive" Then
-            CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.Binary, txt_aruco_ThrshBlockSize.Text, txt_aruco_ThrshSubMean.Text)
+        Dim kernel_dilate_size As Size = New Size(txt_Aruco_MorphDilateKernel.Text, txt_Aruco_MorphDilateKernel.Text)
+        Dim se_dilate As Mat = CvInvoke.GetStructuringElement(ElementShape.Rectangle, kernel_dilate_size, New Point(-1, -1))
+        Dim kernel_open_size As Size = New Size(txt_Aruco_MorphOpenKernel.Text, txt_Aruco_MorphOpenKernel.Text)
+        Dim se_open As Mat = CvInvoke.GetStructuringElement(ElementShape.Rectangle, kernel_open_size, New Point(-1, -1))
 
-        ElseIf txt_aruco_ThrshSelect.Text = "threshold adaptive invert" Then
-
-            CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.BinaryInv, txt_aruco_ThrshBlockSize.Text, txt_aruco_ThrshSubMean.Text)
-
+        If txt_MorphSelct1.Text = "Dilate" Then
+            CvInvoke.MorphologyEx(img_filtered, img_filtered, MorphOp.Dilate, se_dilate, New Point(-1, -1), txt_Aruco_MorphDilateIteration.Text, Emgu.CV.CvEnum.BorderType.Default, New MCvScalar())
+        ElseIf txt_MorphSelct1.Text = "Erode" Then
+            CvInvoke.MorphologyEx(img_filtered, img_filtered, MorphOp.Erode, se_dilate, New Point(-1, -1), txt_Aruco_MorphDilateIteration.Text, Emgu.CV.CvEnum.BorderType.Default, New MCvScalar())
         End If
 
-        img_aruco_RealSenseDepthImageThresh.Image = img_filtered
-        CvInvoke.CvtColor(img_filtered, img_filtered, ColorConversion.Gray2Bgr)
+        If txt_MorphSelct2.Text = "Open" Then
+            CvInvoke.MorphologyEx(img_filtered, img_filtered, MorphOp.Open, se_open, New Point(-1, -1), txt_Aruco_MorphOpenIteration.Text, Emgu.CV.CvEnum.BorderType.Default, New MCvScalar())
+        ElseIf txt_MorphSelct2.Text = "Close" Then
+            CvInvoke.MorphologyEx(img_filtered, img_filtered, MorphOp.Close, se_open, New Point(-1, -1), txt_Aruco_MorphOpenIteration.Text, Emgu.CV.CvEnum.BorderType.Default, New MCvScalar())
+        End If
 
-        Dim Dictionary As Dictionary = New Dictionary(Dictionary.PredefinedDictionaryName.Dict4X4_50)
+        CvInvoke.CvtColor(img_filtered, img_filtered, ColorConversion.Gray2Bgr)
+        img_aruco_RealSenseDepthImageThresh.Image = img_filtered
+
+        Dim Dictionary As Dictionary = New Dictionary(Dictionary.PredefinedDictionaryName.Dict4X4_250)
         Dim corners As VectorOfVectorOfPointF = New VectorOfVectorOfPointF()
         Dim ids As VectorOfInt = New VectorOfInt()
 
@@ -403,6 +509,7 @@ Public Class Form1
             corner_half.Add(corner_2_to_3)
             corner_half.Add(corner_3_to_0)
 
+
             For j As Integer = 0 To vec.Size - 1
 
                 Dim vec_point As Point = New Point(vec(j).X, vec(j).Y)
@@ -429,7 +536,7 @@ Public Class Form1
             'CvInvoke.PutText(img_get, value & "," & centerX & "," & centerY, centerPoint, FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
             'CvInvoke.Circle(img_filtered, centerPoint, 5, New MCvScalar(0, 0, 255), -1)
             'CvInvoke.PutText(img_filtered, value & "," & centerX & "," & centerY, centerPoint, FontFace.HersheyDuplex, 0.75, New MCvScalar(255, 0, 0))
-            img_aruco_ArUcoImage.Image = img_get
+            'img_aruco_ArUcoImage.Image = img_get
             img_aruco_RealSenseDepthImageThresh.Image = img_filtered
 
 
@@ -453,23 +560,74 @@ Public Class Form1
         End If
         'img_Measurement_RealSense_Measurement.Image = cameraMat
 
-        CvInvoke.CvtColor(cameraMat, img_filtered, ColorConversion.Bgr2Gray)
 
         'cameraMat.CopyTo(img_filtered)
         cameraMat.CopyTo(Edge_out)
         'If btn_Morph.BackColor = System.Drawing.Color.Green Then
+        If btn_measurement_Detection_method.BackColor = System.Drawing.Color.LimeGreen Then
+            CvInvoke.CvtColor(cameraMat, img_filtered, ColorConversion.Bgr2Gray)
 
-        'Try
-        If (txt_measurement_ThrshBlockSize.Text Mod 2) = 0 Or txt_measurement_ThrshBlockSize.Text < 3 Or txt_measurement_ThrshBlockSize.Text Is Nothing Then
-            Return
-        End If
-        If txt_measurement_ThrshSelect.Text = "threshold adaptive" Then
-            CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.Binary, txt_measurement_ThrshBlockSize.Text, txt_measurement_ThrshSubMean.Text)
-        ElseIf txt_measurement_ThrshSelect.Text = "threshold adaptive invert" Then
-            CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.BinaryInv, txt_measurement_ThrshBlockSize.Text, txt_measurement_ThrshSubMean.Text)
-        End If
+            'Try
+            If (txt_measurement_ThrshBlockSize.Text Mod 2) = 0 Or txt_measurement_ThrshBlockSize.Text < 3 Or txt_measurement_ThrshBlockSize.Text Is Nothing Then
+                Return
+            End If
+            If txt_measurement_ThrshSelect.Text = "threshold adaptive" Then
+                CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.Binary, txt_measurement_ThrshBlockSize.Text, txt_measurement_ThrshSubMean.Text)
+            ElseIf txt_measurement_ThrshSelect.Text = "threshold adaptive invert" Then
+                CvInvoke.AdaptiveThreshold(img_filtered, img_filtered, 255, AdaptiveThresholdType.MeanC, ThresholdType.BinaryInv, txt_measurement_ThrshBlockSize.Text, txt_measurement_ThrshSubMean.Text)
+            ElseIf txt_measurement_ThrshSelect.Text = "threshold" Then
+                CvInvoke.Threshold(img_filtered, img_filtered, txt_measurement_ThrshSubMean.Text, 255, ThresholdType.Binary)
 
-        img_Measurement_RealSense_thresh.Image = img_filtered
+            ElseIf txt_measurement_ThrshSelect.Text = "threshold invert" Then
+                CvInvoke.Threshold(img_filtered, img_filtered, txt_measurement_ThrshSubMean.Text, 255, ThresholdType.BinaryInv)
+
+            End If
+            img_Measurement_RealSense_morph.Image = img_filtered
+
+            img_Measurement_RealSense_thresh.Image = img_filtered
+
+
+
+
+        ElseIf btn_measurement_Detection_method.BackColor = System.Drawing.Color.RoyalBlue Then
+            CvInvoke.CvtColor(cameraMat, img_filtered, ColorConversion.Bgr2Hsv)
+
+            Dim lowerColor As New UMat(img_filtered.Size.Height, img_filtered.Size.Width / 2, DepthType.Cv8U, 3)
+            Dim upperColor As New UMat(img_filtered.Size.Height, img_filtered.Size.Width / 2, DepthType.Cv8U, 3)
+            Dim lowerhsvColor As New UMat(img_filtered.Size, DepthType.Cv8U, 3)
+            Dim upperhsvColor As New UMat(img_filtered.Size, DepthType.Cv8U, 3)
+
+            Dim lowerHSV As New MCvScalar(txt_Measurement_Hue_low.Text, txt_Measurement_Sat_low.Text, txt_Measurement_Val_low.Text)
+            Dim upperHSV As New MCvScalar(txt_Measurement_Hue_Shift.Text, txt_Measurement_Sat_Shift.Text, txt_Measurement_Val_Shift.Text)
+
+
+            lowerColor.SetTo(lowerHSV) ' Lower bound for red color in HSV
+            upperColor.SetTo(upperHSV) ' Upper bound for red color in HSV
+
+            lowerhsvColor.SetTo(lowerHSV) ' Lower bound for red color in HSV
+            upperhsvColor.SetTo(upperHSV) ' Upper bound for red color in HSV
+
+            'CvInvoke.CvtColor(lowerhsvColor, lowerhsvColor, ColorConversion.Hsv2Bgr)
+            'CvInvoke.CvtColor(upperhsvColor, upperhsvColor, ColorConversion.Hsv2Bgr)
+            CvInvoke.CvtColor(lowerColor, lowerColor, ColorConversion.Hsv2Bgr)
+            CvInvoke.CvtColor(upperColor, upperColor, ColorConversion.Hsv2Bgr)
+
+            Dim colorpicker As New Mat()
+
+            CvInvoke.HConcat(lowerColor, upperColor, colorpicker)
+            img_Measurement_RealSense_morph.Image = colorpicker
+
+            'CvInvoke.CvtColor(lowerhsvColor, lowerhsvColor, ColorConversion.Bgr2Hsv)
+            'CvInvoke.CvtColor(upperhsvColor, upperhsvColor, ColorConversion.Bgr2Hsv)
+            ' Create a mask to extract only red pixels
+            'CvInvoke.CvtColor(img_filtered, img_filtered, ColorConversion.Bgr2Hsv)
+            CvInvoke.InRange(img_filtered, lowerhsvColor, upperhsvColor, img_filtered)
+
+            If btn_Measurement_color_INV.Text = "Inverse" Then
+                CvInvoke.BitwiseNot(img_filtered, img_filtered)
+            End If
+            img_Measurement_RealSense_thresh.Image = img_filtered
+        End If
         'ImageBox2.Image = img_filtered
 
         If txt_MorphDilateKernel.Text Is Nothing Then
@@ -484,7 +642,6 @@ Public Class Form1
         If txt_MorphOpenIteration.Text Is Nothing Then
             Return
         End If
-
         Dim kernel_dilate_size As Size = New Size(txt_MorphDilateKernel.Text, txt_MorphDilateKernel.Text)
         Dim se_dilate As Mat = CvInvoke.GetStructuringElement(ElementShape.Rectangle, kernel_dilate_size, New Point(-1, -1))
         Dim kernel_open_size As Size = New Size(txt_MorphOpenKernel.Text, txt_MorphOpenKernel.Text)
@@ -501,8 +658,6 @@ Public Class Form1
         ElseIf txt_MorphSelct2.Text = "Close" Then
             CvInvoke.MorphologyEx(img_filtered, img_filtered, MorphOp.Close, se_open, New Point(-1, -1), txt_MorphOpenIteration.Text, Emgu.CV.CvEnum.BorderType.Default, New MCvScalar())
         End If
-
-
 
         If btn_EdgeDetect.BackColor = System.Drawing.Color.Green Then
 
@@ -539,10 +694,10 @@ Public Class Form1
             Dim rect_crop As RotatedRect = CvInvoke.MinAreaRect(ctn(largestContourIndex))
             Dim rectPoints_crop() As PointF = rect_crop.GetVertices()
             Dim rectCorners() As Point = Array.ConvertAll(rectPoints_crop, Function(p) New Point(CInt(p.X + txt_ROIX.Text), CInt(p.Y + txt_ROIY.Text)))
-            Dim rectCorners_TL
-            Dim rectCorners_TR
-            Dim rectCorners_BR
-            Dim rectCorners_BL
+            Dim rectCorners_TL As Point
+            Dim rectCorners_TR As Point
+            Dim rectCorners_BR As Point
+            Dim rectCorners_BL As Point
             rectCorners_TL = rectCorners(0)
             rectCorners_TR = rectCorners(1)
             rectCorners_BR = rectCorners(2)
@@ -578,6 +733,18 @@ Public Class Form1
 
             distance_x_ppm = distance_x_pixel / pixel_per_matric_x
             distance_y_ppm = distance_y_pixel / pixel_per_matric_y
+
+            Dim intrinsics_coor_TL As Math.Vector
+            Dim intrinsics_coor_TR As Math.Vector
+            Dim intrinsics_coor_BL As Math.Vector
+            intrinsics_coor_TL = Deproject(depth, rectCorners_TL.X, rectCorners_TL.Y, intr)
+            intrinsics_coor_TR = Deproject(depth, rectCorners_TR.X, rectCorners_TR.Y, intr)
+            intrinsics_coor_BL = Deproject(depth, rectCorners_BL.X, rectCorners_BL.Y, intr)
+            'Debug.Print("BL : " & intrinsics_coor_BL.x & " , " & intrinsics_coor_BL.y & " , " & intrinsics_coor_BL.z)
+            'Debug.Print("TL : " & intrinsics_coor_TL.x & " , " & intrinsics_coor_TL.y & " , " & intrinsics_coor_TL.z)
+
+            distance_x_intrinsics = Calculate3DDistance(intrinsics_coor_TL.x, intrinsics_coor_TL.y, intrinsics_coor_TL.z, intrinsics_coor_TR.x, intrinsics_coor_TR.y, intrinsics_coor_TR.z)
+            distance_y_intrinsics = Calculate3DDistance(intrinsics_coor_TL.x, intrinsics_coor_TL.y, intrinsics_coor_TL.z, intrinsics_coor_BL.x, intrinsics_coor_BL.y, intrinsics_coor_BL.z)
 
             If btn_measurement_mode.BackColor = System.Drawing.Color.LimeGreen Then
                 'CvInvoke.DrawContours(Edge_out, ctn, largestContourIndex, New MCvScalar(0, 0, 255), 2)
@@ -632,7 +799,7 @@ Public Class Form1
 
             End If
 
-            img_Measurement_RealSense_morph.Image = img_filtered
+            'img_Measurement_RealSense_morph.Image = img_filtered
             img_Measurement_RealSense_detection.Image = Edge_out
 
             'End If
@@ -790,7 +957,19 @@ Public Class Form1
                     "beta_0_y" & " = " & beta_0_y)
 
     End Sub
-
+    Function Calculate3DDistance(x1 As Double, y1 As Double, z1 As Double, x2 As Double, y2 As Double, z2 As Double) As Double
+        ' Calculate Euclidean distance
+        Dim distance As Double = System.Math.Sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2 + (z2 - z1) ^ 2)
+        Return distance
+    End Function
+    Function Deproject(ByVal depth As DepthFrame, ByVal x As Integer, ByVal y As Integer, ByVal intrinsics As Intrinsics) As Math.Vector
+        Dim z As Single = depth.GetDistance(x, y)
+        Return New Math.Vector With {
+            .x = z * (x - intrinsics.ppx) / intrinsics.fx,
+            .y = z * (y - intrinsics.ppy) / intrinsics.fy,
+            .z = z
+        }
+    End Function
     Sub find_pixel_per_matric()
         If Aruco_coordinate.Count = 0 Then
             Return
@@ -1032,10 +1211,10 @@ Public Class Form1
                 ' Create a StreamWriter to write the CSV file
                 Using writer As New StreamWriter(saveFileDialog.FileName)
                     ' Write the header row
-                    writer.WriteLine("Width LRG,Width PPM,Height LRG,Height PPM,Width,Height,beta_1_x,beta_0_x,beta_1_y,beta_0_y,distance_x_ppm,distance_y_ppm")
+                    writer.WriteLine("Width LRG,Width PPM,Width ITR,Height LRG,Height PPM,Height LTR,Width,Height,beta_1_x,beta_0_x,beta_1_y,beta_0_y,distance_x_ppm,distance_y_ppm")
                     ' Write the data rows
                     For Each item In size_obj
-                        writer.WriteLine($"{item.Item1.Item1},{item.Item1.Item2},{item.Item2.Item1},{item.Item2.Item2},{item.Item3.Item1},{item.Item3.Item2},{item.Item4.Item1},{item.Item4.Item2},{item.Item4.Item3},{item.Item4.Item4},{item.Item5.Item1},{item.Item5.Item2}")
+                        writer.WriteLine($"{item.Item1.Item1},{item.Item1.Item2},{item.Item1.Item3},{item.Item2.Item1},{item.Item2.Item2},{item.Item2.Item3},{item.Item3.Item1},{item.Item3.Item2},{item.Item4.Item1},{item.Item4.Item2},{item.Item4.Item3},{item.Item4.Item4},{item.Item5.Item1},{item.Item5.Item2}")
                     Next
                     ' Flush the StreamWriter to ensure all data is written to the file
                     writer.Flush()
@@ -1081,14 +1260,123 @@ Public Class Form1
                     "pixel per metric x" & " = " & pixel_per_matric_x & vbCrLf &
                     "pixel per metric y" & " = " & pixel_per_matric_y & vbCrLf &
                     "distance_x_ppm" & " = " & distance_x_ppm & vbCrLf &
-                    "distance_y_ppm" & " = " & distance_y_ppm)
+                    "distance_y_ppm" & " = " & distance_y_ppm & vbCrLf &
+                    "distance_x_intrinsics" & " = " & distance_x_intrinsics & vbCrLf &
+                    "distance_y_intrinsics" & " = " & distance_y_intrinsics)
 
-        size_obj.Add(Tuple.Create(Tuple.Create(distance_x, distance_x_ppm), Tuple.Create(distance_Y, distance_y_ppm), Tuple.Create(distance_x_pixel, distance_y_pixel), Tuple.Create(beta_1_x, beta_0_x, beta_1_y, beta_0_y), Tuple.Create(pixel_per_matric_x, pixel_per_matric_y)))
+        size_obj.Add(Tuple.Create(Tuple.Create(distance_x, distance_x_ppm, distance_x_intrinsics), Tuple.Create(distance_Y, distance_y_ppm, distance_y_intrinsics), Tuple.Create(distance_x_pixel, distance_y_pixel), Tuple.Create(beta_1_x, beta_0_x, beta_1_y, beta_0_y), Tuple.Create(pixel_per_matric_x, pixel_per_matric_y)))
     End Sub
 
     Private Sub btn_clear_size_Click(sender As Object, e As EventArgs) Handles btn_clear_size.Click
-        size_obj = New List(Of Tuple(Of Tuple(Of Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double, Double, Double), Tuple(Of Double, Double)))
+        size_obj = New List(Of Tuple(Of Tuple(Of Double, Double, Double), Tuple(Of Double, Double, Double), Tuple(Of Double, Double), Tuple(Of Double, Double, Double, Double), Tuple(Of Double, Double)))
 
+    End Sub
+
+    Private Sub TextBox1_TextChanged(sender As Object, e As EventArgs) Handles TextBox1.TextChanged
+        maker_x = TextBox1.Text
+        maker_y = TextBox1.Text
+        X_real = New List(Of Double)({0, maker_x / 2, maker_x, maker_x, maker_x, maker_x / 2, 0, 0})
+        Y_real = New List(Of Double)({0, 0, 0, maker_y / 2, maker_y, maker_y, maker_y, maker_y / 2})
+    End Sub
+
+    Private Sub btn_Detection_method_Click_1(sender As Object, e As EventArgs) Handles btn_Aruco_Detection_method.Click
+        If btn_Aruco_Detection_method.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_Aruco_Detection_method.BackColor = System.Drawing.Color.RoyalBlue
+            btn_Aruco_Detection_method.ForeColor = SystemColors.Window
+            btn_Aruco_Detection_method.Text = "Color"
+
+        ElseIf btn_Aruco_Detection_method.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_Aruco_Detection_method.BackColor = System.Drawing.Color.LimeGreen
+            btn_Aruco_Detection_method.ForeColor = SystemColors.Window
+            btn_Aruco_Detection_method.Text = "Thresh"
+
+        End If
+    End Sub
+
+    Private Sub btn_measurement_Detection_method_Click(sender As Object, e As EventArgs) Handles btn_measurement_Detection_method.Click
+        If btn_measurement_Detection_method.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_measurement_Detection_method.BackColor = System.Drawing.Color.RoyalBlue
+            btn_measurement_Detection_method.ForeColor = SystemColors.Window
+            btn_measurement_Detection_method.Text = "Color"
+
+        ElseIf btn_measurement_Detection_method.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_measurement_Detection_method.BackColor = System.Drawing.Color.LimeGreen
+            btn_measurement_Detection_method.ForeColor = SystemColors.Window
+            btn_measurement_Detection_method.Text = "Thresh"
+
+        End If
+    End Sub
+
+    Private Sub btn_Aruco_color_INV_Click(sender As Object, e As EventArgs) Handles btn_Aruco_color_INV.Click
+        If btn_Aruco_color_INV.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_Aruco_color_INV.BackColor = System.Drawing.Color.RoyalBlue
+            btn_Aruco_color_INV.ForeColor = SystemColors.Window
+            btn_Aruco_color_INV.Text = "Inverse"
+
+        ElseIf btn_Aruco_color_INV.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_Aruco_color_INV.BackColor = System.Drawing.Color.LimeGreen
+            btn_Aruco_color_INV.ForeColor = SystemColors.Window
+            btn_Aruco_color_INV.Text = "Normal"
+
+        End If
+    End Sub
+
+    Private Sub btn_Measurement_color_INV_Click(sender As Object, e As EventArgs) Handles btn_Measurement_color_INV.Click
+        If btn_Measurement_color_INV.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_Measurement_color_INV.BackColor = System.Drawing.Color.RoyalBlue
+            btn_Measurement_color_INV.ForeColor = SystemColors.Window
+            btn_Measurement_color_INV.Text = "Inverse"
+
+        ElseIf btn_Measurement_color_INV.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_Measurement_color_INV.BackColor = System.Drawing.Color.LimeGreen
+            btn_Measurement_color_INV.ForeColor = SystemColors.Window
+            btn_Measurement_color_INV.Text = "Normal"
+
+        End If
+    End Sub
+
+    Private Sub btn_aruco_align_Click(sender As Object, e As EventArgs) Handles btn_aruco_align.Click
+
+        If btn_aruco_align.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_aruco_align.BackColor = System.Drawing.Color.RoyalBlue
+            btn_aruco_align.ForeColor = SystemColors.Window
+            btn_aruco_align.Text = "Raw"
+
+            btn_measure_align.BackColor = System.Drawing.Color.RoyalBlue
+            btn_measure_align.ForeColor = SystemColors.Window
+            btn_measure_align.Text = "Raw"
+
+        ElseIf btn_aruco_align.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_aruco_align.BackColor = System.Drawing.Color.LimeGreen
+            btn_aruco_align.ForeColor = SystemColors.Window
+            btn_aruco_align.Text = "Aligned"
+
+            btn_measure_align.BackColor = System.Drawing.Color.LimeGreen
+            btn_measure_align.ForeColor = SystemColors.Window
+            btn_measure_align.Text = "Aligned"
+        End If
+    End Sub
+
+    Private Sub btn_measure_align_Click(sender As Object, e As EventArgs) Handles btn_measure_align.Click
+
+        If btn_measure_align.BackColor = System.Drawing.Color.LimeGreen Then
+            btn_measure_align.BackColor = System.Drawing.Color.RoyalBlue
+            btn_measure_align.ForeColor = SystemColors.Window
+            btn_measure_align.Text = "Raw"
+
+            btn_aruco_align.BackColor = System.Drawing.Color.RoyalBlue
+            btn_aruco_align.ForeColor = SystemColors.Window
+            btn_aruco_align.Text = "Raw"
+
+        ElseIf btn_measure_align.BackColor = System.Drawing.Color.RoyalBlue Then
+            btn_measure_align.BackColor = System.Drawing.Color.LimeGreen
+            btn_measure_align.ForeColor = SystemColors.Window
+            btn_measure_align.Text = "Aligned"
+
+            btn_aruco_align.BackColor = System.Drawing.Color.LimeGreen
+            btn_aruco_align.ForeColor = SystemColors.Window
+            btn_aruco_align.Text = "Aligned"
+        End If
     End Sub
 End Class
 
